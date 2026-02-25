@@ -30,7 +30,7 @@ jobs:
 
       - name: Build APK
         run: |
-          flet build apk ./src --project ShiftScheduler --product "Egyptian Nursing Shift Scheduler" --org com.abdelrahman.scheduler
+          yes | flet build apk ./src --project ShiftScheduler --product "Egyptian Nursing Shift Scheduler" --org com.abdelrahman.scheduler
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4

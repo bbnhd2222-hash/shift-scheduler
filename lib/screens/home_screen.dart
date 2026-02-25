@@ -15,7 +15,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   final TextEditingController _monthCtrl = TextEditingController(text: "3");
   final TextEditingController _yearCtrl = TextEditingController(text: "2026");
   final TextEditingController _hnCtrl = TextEditingController(text: "1");
@@ -27,9 +27,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Nurse> _schedule = [];
   bool _isGenerating = false;
+  
+  // Keep track of cells being pressed for bounce animation
+  Map<String, bool> _pressedCells = {};
 
-  void _generate() {
+  void _generate() async {
     setState(() { _isGenerating = true; });
+    // Add a tiny delay to allow the loading spinner to show up smoothly
+    await Future.delayed(const Duration(milliseconds: 300));
     try {
       int year = int.parse(_yearCtrl.text);
       int month = int.parse(_monthCtrl.text);
@@ -41,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'TN': int.parse(_tnCtrl.text),
       };
       
-      List<int> holidays = month == 3 ? [21, 22, 23] : []; // Sample holidays
+      List<int> holidays = month == 3 ? [21, 22, 23] : [];
       
       Scheduler scheduler = Scheduler();
       var result = scheduler.generateSchedule(
@@ -53,16 +58,25 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _schedule = result;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Schedule Generated!"), backgroundColor: Colors.green),
-      );
+      _showSnack("✨ Schedule Generated Successfully ✨", Colors.greenAccent.shade700);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
-      );
+      _showSnack("Error: $e", Colors.redAccent);
     } finally {
       setState(() { _isGenerating = false; });
     }
+  }
+
+  void _showSnack(String msg, Color bg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        backgroundColor: bg,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   void _cycleShift(Nurse nurse, int day) {
@@ -81,9 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _exportExcel() async {
     if (_schedule.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Generate schedule first!"), backgroundColor: Colors.red),
-      );
+      _showSnack("Generate a schedule first!", Colors.orangeAccent);
       return;
     }
     
@@ -95,76 +107,117 @@ class _HomeScreenState extends State<HomeScreen> {
       String path = '${tempDir.path}/Schedule_${month}_$year.xlsx';
       
       await Exporter.exportToExcel(_schedule, year, month, path);
-      
       await Share.shareXFiles([XFile(path)], text: 'Schedule for $month/$year');
       
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Export Error: $e"), backgroundColor: Colors.red),
-      );
+      _showSnack("Export Error: $e", Colors.redAccent);
     }
   }
 
   Widget _buildConfigDrawer() {
     return Drawer(
+      backgroundColor: const Color(0xFF1E1E2C),
       child: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(24.0),
           children: [
-            Text("Settings", style: Theme.of(context).textTheme.headlineSmall),
-            const Divider(),
             Row(
               children: [
-                Expanded(child: TextField(controller: _monthCtrl, decoration: const InputDecoration(labelText: "Month"))),
-                const SizedBox(width: 8),
-                Expanded(child: TextField(controller: _yearCtrl, decoration: const InputDecoration(labelText: "Year"))),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Text("Staff Counts", style: TextStyle(fontWeight: FontWeight.bold)),
-            Row(
-              children: [
-                Expanded(child: TextField(controller: _hnCtrl, decoration: const InputDecoration(labelText: "HN"))),
-                const SizedBox(width: 8),
-                Expanded(child: TextField(controller: _asstCtrl, decoration: const InputDecoration(labelText: "Asst"))),
-              ],
-            ),
-            Row(
-              children: [
-                Expanded(child: TextField(controller: _pnCtrl, decoration: const InputDecoration(labelText: "PN"))),
-                const SizedBox(width: 8),
-                Expanded(child: TextField(controller: _tnCtrl, decoration: const InputDecoration(labelText: "TN"))),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Text("Targets", style: TextStyle(fontWeight: FontWeight.bold)),
-            Row(
-              children: [
-                Expanded(child: TextField(controller: _hoursCtrl, decoration: const InputDecoration(labelText: "Target Hrs"))),
-                const SizedBox(width: 8),
-                Expanded(child: TextField(controller: _nightsCtrl, decoration: const InputDecoration(labelText: "Target N"))),
+                const Icon(Icons.settings_suggest, color: Colors.blueAccent, size: 28),
+                const SizedBox(width: 12),
+                Text("Setup", style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.white)),
               ],
             ),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _isGenerating ? null : _generate,
-              icon: _isGenerating ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.autorenew),
-              label: const Text("Generate Schedule"),
-              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+            _buildGlassField("Month", _monthCtrl, Icons.calendar_month),
+            const SizedBox(height: 12),
+            _buildGlassField("Year", _yearCtrl, Icons.calendar_today),
+            const SizedBox(height: 24),
+            const Text("STAFF COUNTS", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.2)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _buildGlassField("HN", _hnCtrl, null)),
+                const SizedBox(width: 8),
+                Expanded(child: _buildGlassField("Asst", _asstCtrl, null)),
+              ],
             ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: _exportExcel,
-              icon: const Icon(Icons.download),
-              label: const Text("Export Excel & Share"),
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.green,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: _buildGlassField("PN", _pnCtrl, null)),
+                const SizedBox(width: 8),
+                Expanded(child: _buildGlassField("TN", _tnCtrl, null)),
+              ],
+            ),
+            const SizedBox(height: 24),
+            const Text("TARGETS", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.2)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _buildGlassField("Hrs", _hoursCtrl, Icons.access_time)),
+                const SizedBox(width: 8),
+                Expanded(child: _buildGlassField("Nights", _nightsCtrl, Icons.nightlight_round)),
+              ],
+            ),
+            const SizedBox(height: 32),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              height: 55,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: const LinearGradient(colors: [Colors.blueAccent, Colors.purpleAccent]),
+                boxShadow: [
+                  BoxShadow(color: Colors.blueAccent.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))
+                ]
+              ),
+              child: ElevatedButton(
+                onPressed: _isGenerating ? null : _generate,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: _isGenerating 
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                    : const Text("GENERATE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.5, fontSize: 16)),
               ),
             ),
-            const SizedBox(height: 24),
-            const Text("Dev: Abdelrahman Shaer Deghady", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 12)),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 55,
+              child: OutlinedButton.icon(
+                onPressed: _exportExcel,
+                icon: const Icon(Icons.share, color: Colors.greenAccent),
+                label: const Text("EXPORT EXCEL", style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.greenAccent, width: 2),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassField(String label, TextEditingController ctrl, IconData? icon) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: TextField(
+        controller: ctrl,
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        decoration: InputDecoration(
+          prefixIcon: icon != null ? Icon(icon, color: Colors.white54, size: 18) : null,
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.white54),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
       ),
     );
@@ -172,16 +225,31 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Color _getShiftColor(ShiftType shift) {
     switch(shift) {
-      case ShiftType.morning: return Colors.green.shade700;
-      case ShiftType.evening: return Colors.blue.shade700;
-      case ShiftType.night: return Colors.red.shade900;
-      case ShiftType.off: return Colors.grey.shade800;
+      case ShiftType.morning: return Colors.amber.shade400;
+      case ShiftType.evening: return Colors.deepOrangeAccent;
+      case ShiftType.night: return Colors.deepPurpleAccent;
+      case ShiftType.off: return const Color(0xFF2C2C3E);
     }
   }
+  
+  Color _getShiftTextColor(ShiftType shift) {
+    if (shift == ShiftType.morning) return Colors.black87;
+    if (shift == ShiftType.off) return Colors.white30;
+    return Colors.white;
+  }
 
-  Widget _buildDataTable() {
+  Widget _buildFluidGrid() {
     if (_schedule.isEmpty) {
-      return const Center(child: Text("Configure settings and click Generate", style: TextStyle(fontSize: 16, color: Colors.grey)));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.auto_awesome, size: 64, color: Colors.white.withOpacity(0.2)),
+            const SizedBox(height: 16),
+            Text("Ready to orchestrate the month.", style: TextStyle(fontSize: 18, color: Colors.white.withOpacity(0.5))),
+          ],
+        ),
+      );
     }
 
     int year = int.tryParse(_yearCtrl.text) ?? 2026;
@@ -193,142 +261,209 @@ class _HomeScreenState extends State<HomeScreen> {
     Map<int, int> tm = {};
     Map<int, int> te = {};
     Map<int, int> tn = {};
-    Map<int, int> tStaff = {};
 
     for (int d in days) {
-      int m = 0, e = 0, n = 0, staff = 0;
+      int m = 0, e = 0, n = 0;
       for (var nurse in _schedule) {
         var s = nurse.getShift(d);
         if (s == ShiftType.morning) m++;
         if (s == ShiftType.evening) e++;
         if (s == ShiftType.night) n++;
-        if (nurse.role != "HN" && nurse.role != "Asst" && s != ShiftType.off) staff++;
       }
       tm[d] = m;
       te[d] = e;
       tn[d] = n;
-      tStaff[d] = staff;
     }
 
-    // Build the grid inside constraints
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.vertical,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columnSpacing: 12,
-              headingRowHeight: 40,
-              dataRowMinHeight: 40,
-              dataRowMaxHeight: 40,
-              columns: [
-                const DataColumn(label: Text("Name")),
-                for (int d in days) DataColumn(label: Text("$d")),
-                const DataColumn(label: Text("M Hrs")),
-                const DataColumn(label: Text("E Hrs")),
-                const DataColumn(label: Text("N Hrs")),
-                const DataColumn(label: Text("Total", style: TextStyle(fontWeight: FontWeight.bold))),
-              ],
-              rows: [
-                ..._schedule.map((nurse) {
-                  int mHrs = nurse.countShiftType(ShiftType.morning) * 6;
-                  int eHrs = nurse.countShiftType(ShiftType.evening) * 6;
-                  int nHrs = nurse.countShiftType(ShiftType.night) * 12;
-
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(nurse.name, style: const TextStyle(fontWeight: FontWeight.bold))),
-                      for (int d in days) 
-                        DataCell(
-                          InkWell(
-                            onTap: () => _cycleShift(nurse, d),
-                            child: Container(
-                              width: 35,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: _getShiftColor(nurse.getShift(d)),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                nurse.getShift(d) == ShiftType.off ? "-" : nurse.getShift(d).value,
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                              ),
-                            ),
-                          ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.vertical,
+      physics: const BouncingScrollPhysics(),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header Row
+              Row(
+                children: [
+                  _buildHeaderCell("Nurse Name", width: 140),
+                  for (int d in days) _buildHeaderCell("$d", width: 44, isWeekend: Scheduler().isFriday(year, month, d) || Scheduler().isSaturday(year, month, d)),
+                  _buildHeaderCell("M", width: 40, color: Colors.amber.shade800),
+                  _buildHeaderCell("E", width: 40, color: Colors.deepOrange.shade800),
+                  _buildHeaderCell("N", width: 40, color: Colors.deepPurple.shade800),
+                  _buildHeaderCell("Σ", width: 50, color: Colors.blueAccent),
+                ],
+              ),
+              const SizedBox(height: 8),
+              
+              // Nurse Rows
+              ..._schedule.map((nurse) {
+                int mHrs = nurse.countShiftType(ShiftType.morning) * 6;
+                int eHrs = nurse.countShiftType(ShiftType.evening) * 6;
+                int nHrs = nurse.countShiftType(ShiftType.night) * 12;
+                int totalHrs = mHrs + eHrs + nHrs;
+                
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6.0),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 140,
+                        height: 44,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        alignment: Alignment.centerLeft,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      DataCell(Text("$mHrs")),
-                      DataCell(Text("$eHrs")),
-                      DataCell(Text("$nHrs")),
-                      DataCell(Text("${mHrs + eHrs + nHrs}", style: const TextStyle(fontWeight: FontWeight.bold))),
+                        child: Text(nurse.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13)),
+                      ),
+                      const SizedBox(width: 4),
+                      for (int d in days)
+                        _buildInteractiveCell(nurse, d),
+                      const SizedBox(width: 4),
+                      _buildSummaryCell("$mHrs", width: 40),
+                      _buildSummaryCell("$eHrs", width: 40),
+                      _buildSummaryCell("$nHrs", width: 40),
+                      _buildSummaryCell("$totalHrs", width: 50, isHighlight: true),
                     ],
-                  );
-                }),
-                // Footer Rows
-                _buildFooterRow("Total M", tm, days, Colors.green.shade900),
-                _buildFooterRow("Total E", te, days, Colors.blue.shade900),
-                _buildFooterRow("Total N", tn, days, Colors.red.shade900),
-                _buildFooterRow("Staff", tStaff, days, Colors.grey.shade700),
-              ],
-            ),
+                  ),
+                );
+              }),
+              
+              const SizedBox(height: 16),
+              const Text("DAILY TOTALS", style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+              const SizedBox(height: 8),
+              
+              // Footer Totals
+              Row(
+                children: [
+                  _buildHeaderCell("Morning", width: 140, color: Colors.amber.withOpacity(0.2)),
+                  for (int d in days) _buildSummaryCell("${tm[d]}", width: 44, color: Colors.amber.withOpacity(0.2)),
+                ]
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  _buildHeaderCell("Evening", width: 140, color: Colors.deepOrange.withOpacity(0.2)),
+                  for (int d in days) _buildSummaryCell("${te[d]}", width: 44, color: Colors.deepOrange.withOpacity(0.2)),
+                ]
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  _buildHeaderCell("Night", width: 140, color: Colors.deepPurple.withOpacity(0.2)),
+                  for (int d in days) _buildSummaryCell("${tn[d]}", width: 44, color: Colors.deepPurple.withOpacity(0.2)),
+                ]
+              ),
+            ],
           ),
-        );
-      }
+        ),
+      ),
     );
   }
 
-  DataRow _buildFooterRow(String label, Map<int, int> data, List<int> days, Color color) {
-    return DataRow(
-      color: WidgetStateProperty.all(Colors.black12),
-      cells: [
-        DataCell(Text(label, style: const TextStyle(fontWeight: FontWeight.bold))),
-        for (int d in days)
-          DataCell(
-            Container(
-              width: 35,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text("${data[d]}", style: const TextStyle(color: Colors.white, fontSize: 12)),
-            )
+  Widget _buildHeaderCell(String text, {required double width, bool isWeekend = false, Color? color}) {
+    return Container(
+      width: width,
+      height: 40,
+      margin: const EdgeInsets.only(right: 4),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color ?? (isWeekend ? Colors.redAccent.withOpacity(0.2) : Colors.white.withOpacity(0.05)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(text, style: TextStyle(color: isWeekend ? Colors.redAccent : Colors.white70, fontWeight: FontWeight.bold, fontSize: 12)),
+    );
+  }
+
+  Widget _buildSummaryCell(String text, {required double width, bool isHighlight = false, Color? color}) {
+    return Container(
+      width: width,
+      height: 44,
+      margin: const EdgeInsets.only(right: 4),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color ?? (isHighlight ? Colors.blueAccent.withOpacity(0.2) : Colors.white.withOpacity(0.05)),
+        borderRadius: BorderRadius.circular(8),
+        border: isHighlight ? Border.all(color: Colors.blueAccent.withOpacity(0.5)) : null,
+      ),
+      child: Text(text, style: TextStyle(color: isHighlight ? Colors.blueAccent : Colors.white, fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal)),
+    );
+  }
+
+  Widget _buildInteractiveCell(Nurse nurse, int day) {
+    String cellKey = "${nurse.name}_$day";
+    bool isPressed = _pressedCells[cellKey] ?? false;
+    ShiftType shift = nurse.getShift(day);
+    
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressedCells[cellKey] = true),
+      onTapUp: (_) {
+        setState(() => _pressedCells[cellKey] = false);
+        _cycleShift(nurse, day);
+      },
+      onTapCancel: () => setState(() => _pressedCells[cellKey] = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutBack,
+        width: 44,
+        height: 44,
+        margin: const EdgeInsets.only(right: 4),
+        transform: isPressed ? (Matrix4.identity()..scale(0.85, 0.85)..translate(3.0, 3.0)) : Matrix4.identity(),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: _getShiftColor(shift),
+          borderRadius: BorderRadius.circular(isPressed ? 16 : 8),
+          boxShadow: shift != ShiftType.off 
+            ? [BoxShadow(color: _getShiftColor(shift).withOpacity(0.4), blurRadius: isPressed ? 2 : 8, offset: isPressed ? const Offset(0,0) : const Offset(0, 3))]
+            : [],
+        ),
+        child: Text(
+          shift == ShiftType.off ? "·" : shift.value,
+          style: TextStyle(
+            color: _getShiftTextColor(shift),
+            fontWeight: FontWeight.bold,
+            fontSize: shift == ShiftType.off ? 24 : 14,
           ),
-        const DataCell(Text("")),
-        const DataCell(Text("")),
-        const DataCell(Text("")),
-        const DataCell(Text("")),
-      ]
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // If screen is wide, show drawer as sidebar
     bool isDesktop = MediaQuery.of(context).size.width > 800;
 
     return Scaffold(
+      backgroundColor: const Color(0xFF0F0F1A),
       appBar: isDesktop ? null : AppBar(
-        title: const Text("Shift Scheduler"),
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+        title: const Text("Shift Scheduler", style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+        backgroundColor: const Color(0xFF1E1E2C),
+        elevation: 0,
       ),
       drawer: isDesktop ? null : _buildConfigDrawer(),
       body: Row(
         children: [
           if (isDesktop)
             SizedBox(
-              width: 300,
+              width: 320,
               child: _buildConfigDrawer(),
             ),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Card(
-                elevation: 4,
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: _buildDataTable(),
-                ),
+            child: Container(
+              margin: EdgeInsets.all(isDesktop ? 24.0 : 0),
+              decoration: isDesktop ? BoxDecoration(
+                color: const Color(0xFF151522),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 10))],
+              ) : null,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(isDesktop ? 24 : 0),
+                child: _buildFluidGrid(),
               ),
             ),
           )

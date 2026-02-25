@@ -15,35 +15,32 @@ class Exporter {
     var ws = excel[sheetName];
 
     // Headers
-    List<CellValue?> headers = [
-      TextCellValue("No."),
-      TextCellValue("Name")
-    ];
+    List<dynamic> headers = ["No.", "Name"];
     for (int d = 1; d <= 31; d++) {
-      headers.add(TextCellValue(d.toString()));
+      headers.add(d.toString());
     }
     headers.addAll([
-      TextCellValue("M Hours"),
-      TextCellValue("E Hours"),
-      TextCellValue("N Hours"),
-      TextCellValue("Total Hours")
+      "M Hours",
+      "E Hours",
+      "N Hours",
+      "Total Hours"
     ]);
     ws.appendRow(headers);
 
     // Row Data
     for (int i = 0; i < nurses.length; i++) {
       var nurse = nurses[i];
-      List<CellValue?> row = [
-        IntCellValue(i + 1),
-        TextCellValue(nurse.name)
+      List<dynamic> row = [
+        (i + 1),
+        nurse.name
       ];
 
       for (int d = 1; d <= 31; d++) {
         var shift = nurse.getShift(d);
         if (shift != ShiftType.off) {
-          row.add(TextCellValue(shift.value));
+          row.add(shift.value);
         } else {
-          row.add(TextCellValue("")); // Empty for OFF
+          row.add(""); // Empty for OFF
         }
       }
 
@@ -52,18 +49,18 @@ class Exporter {
       int nHrs = nurse.countShiftType(ShiftType.night) * 12;
 
       row.addAll([
-        IntCellValue(mHrs),
-        IntCellValue(eHrs),
-        IntCellValue(nHrs),
-        IntCellValue(mHrs + eHrs + nHrs)
+        mHrs,
+        eHrs,
+        nHrs,
+        (mHrs + eHrs + nHrs)
       ]);
       ws.appendRow(row);
     }
 
     // Daily Totals
-    List<CellValue?> totalM = [TextCellValue("Total M"), TextCellValue("")];
-    List<CellValue?> totalE = [TextCellValue("Total E"), TextCellValue("")];
-    List<CellValue?> totalN = [TextCellValue("Total N"), TextCellValue("")];
+    List<dynamic> totalM = ["Total M", ""];
+    List<dynamic> totalE = ["Total E", ""];
+    List<dynamic> totalN = ["Total N", ""];
 
     for (int d = 1; d <= 31; d++) {
       int mCount = 0;
@@ -75,9 +72,9 @@ class Exporter {
         if (shift == ShiftType.evening) eCount++;
         if (shift == ShiftType.night) nCount++;
       }
-      totalM.add(IntCellValue(mCount));
-      totalE.add(IntCellValue(eCount));
-      totalN.add(IntCellValue(nCount));
+      totalM.add(mCount);
+      totalE.add(eCount);
+      totalN.add(nCount);
     }
 
     ws.appendRow([]); // Empty row

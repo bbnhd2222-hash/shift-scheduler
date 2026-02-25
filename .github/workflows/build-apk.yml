@@ -25,7 +25,15 @@ jobs:
 
       - name: Build APK
         run: |
-          flet build apk ./src --project ShiftScheduler --product "Egyptian Nursing Shift Scheduler" --org com.abdelrahman.scheduler
+          python -c '
+          import sys
+          import flet_cli.cli
+          import rich.prompt
+          from rich.prompt import Confirm
+          Confirm.ask = lambda *a, **k: True
+          sys.argv = ["flet", "build", "apk", "./src", "--project", "ShiftScheduler", "--product", "Egyptian Nursing Shift Scheduler", "--org", "com.abdelrahman.scheduler"]
+          flet_cli.cli.main()
+          '
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4

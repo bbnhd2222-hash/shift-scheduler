@@ -39,7 +39,7 @@ def main(page: ft.Page):
     hours_field = ft.TextField(label="Target Hrs", value="160", dense=True, expand=True)
     nights_field = ft.TextField(label="Target Nights", value="4", dense=True, expand=True)
     
-    def show_snack(message, color=ft.colors.GREEN):
+    def show_snack(message, color=ft.Colors.GREEN):
         page.snack_bar = ft.SnackBar(ft.Text(message), bgcolor=color)
         page.snack_bar.open = True
         page.update()
@@ -67,11 +67,11 @@ def main(page: ft.Page):
             render_table()
             show_snack("Schedule Generated Successfully!")
         except Exception as ex:
-            show_snack(f"Error: {ex}", ft.colors.RED)
+            show_snack(f"Error: {ex}", ft.Colors.RED)
 
     def on_export(e):
         if not state_schedule:
-            show_snack("Generate schedule first!", ft.colors.RED)
+            show_snack("Generate schedule first!", ft.Colors.RED)
             return
 
         def save_file_result(e: ft.FilePickerResultEvent):
@@ -81,7 +81,7 @@ def main(page: ft.Page):
                     Exporter.export_to_excel(state_schedule, state_year, state_month, path)
                     show_snack(f"Exported to {path}")
                 except Exception as ex:
-                    show_snack(f"Export Error: {ex}", ft.colors.RED)
+                    show_snack(f"Export Error: {ex}", ft.Colors.RED)
         
         file_picker.save_file(
             dialog_title="Save as Excel",
@@ -127,10 +127,10 @@ def main(page: ft.Page):
         shift = nurse.get_shift(day)
         
         colors = {
-            ShiftType.MORNING: ft.colors.GREEN_700,
-            ShiftType.EVENING: ft.colors.BLUE_700,
-            ShiftType.NIGHT: ft.colors.RED_900,
-            ShiftType.OFF: ft.colors.GREY_800
+            ShiftType.MORNING: ft.Colors.GREEN_700,
+            ShiftType.EVENING: ft.Colors.BLUE_700,
+            ShiftType.NIGHT: ft.Colors.RED_900,
+            ShiftType.OFF: ft.Colors.GREY_800
         }
         
         text_ctrl = ft.Text(shift.value if shift != ShiftType.OFF else "-", weight=ft.FontWeight.BOLD)
@@ -211,26 +211,26 @@ def main(page: ft.Page):
             for d in range(1, 32):
                 txt = ft.Text("0", size=11, color="white")
                 daily_totals[key][d] = txt
-                cnt = ft.Container(width=35, height=25, alignment=ft.alignment.center, bgcolor=color or ft.colors.GREY_800, border_radius=3, content=txt)
+                cnt = ft.Container(width=35, height=25, alignment=ft.alignment.center, bgcolor=color or ft.Colors.GREY_800, border_radius=3, content=txt)
                 row.controls.append(cnt)
             table_container.controls.append(row)
 
-        add_footer_row("Total M:", "M", ft.colors.GREEN_900)
-        add_footer_row("Total E:", "E", ft.colors.BLUE_900)
-        add_footer_row("Total N:", "N", ft.colors.RED_900)
-        add_footer_row("Staff (Ex. HN):", "Staff", ft.colors.GREY_700)
+        add_footer_row("Total M:", "M", ft.Colors.GREEN_900)
+        add_footer_row("Total E:", "E", ft.Colors.BLUE_900)
+        add_footer_row("Total N:", "N", ft.Colors.RED_900)
+        add_footer_row("Staff (Ex. HN):", "Staff", ft.Colors.GREY_700)
         
         update_totals()
 
     # --- Layout ---
     sidebar = ft.Container(
         padding=15,
-        bgcolor=ft.colors.SURFACE_VARIANT,
+        bgcolor=ft.Colors.SURFACE_VARIANT,
         border_radius=10,
         content=ft.Column(
             scroll=ft.ScrollMode.AUTO,
             controls=[
-                ft.Text("Shift Scheduler", size=24, weight="bold", color=ft.colors.PRIMARY),
+                ft.Text("Shift Scheduler", size=24, weight="bold", color=ft.Colors.PRIMARY),
                 ft.Divider(),
                 ft.Row([month_dropdown, year_field]),
                 ft.Text("Staff Counts", weight="bold"),
@@ -240,9 +240,9 @@ def main(page: ft.Page):
                 ft.Row([hours_field, nights_field]),
                 ft.Divider(),
                 ft.ElevatedButton("Generate Schedule", on_click=on_generate, icon=ft.icons.AUTORENEW),
-                ft.FilledButton("Export to Excel", on_click=on_export, icon=ft.icons.DOWNLOAD, style=ft.ButtonStyle(bgcolor=ft.colors.GREEN_700)),
+                ft.FilledButton("Export to Excel", on_click=on_export, icon=ft.icons.DOWNLOAD, style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_700)),
                 ft.Container(height=20),
-                ft.Text("Dev: Abdelrahman Shaer Deghady", size=12, italic=True, color=ft.colors.ON_SURFACE_VARIANT)
+                ft.Text("Dev: Abdelrahman Shaer Deghady", size=12, italic=True, color=ft.Colors.ON_SURFACE_VARIANT)
             ]
         )
     )

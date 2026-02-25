@@ -1,0 +1,22 @@
+name: shift_scheduler
+description: "Egyptian Nursing Shift Scheduler"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  excel: ^3.0.0
+  path_provider: ^2.1.2
+  share_plus: ^7.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

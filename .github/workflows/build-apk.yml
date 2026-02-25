@@ -13,27 +13,27 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
       - name: Install Flutter SDK
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      - name: Build APK
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Generate Platform Folders
         run: |
-          yes | flet build apk ./src --project ShiftScheduler --product "Egyptian Nursing Shift Scheduler" --org com.abdelrahman.scheduler
+          mkdir -p lib_backup
+          mv lib/* lib_backup/ || true
+          flutter create . --platforms android --org com.abdelrahman.scheduler --project-name shift_scheduler
+          mv lib_backup/* lib/
+          rm -rf lib_backup
+
+      - name: Build APK
+        run: flutter build apk --release
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: shift-scheduler-apk
-          path: build/apk/**/*.apk
+          path: build/app/outputs/flutter-apk/app-release.apk

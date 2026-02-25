@@ -1,0 +1,35 @@
+2026-02-25T10:41:47.6521370Z Installing flet-cli 0.81.0 package...OK
+2026-02-25T10:41:47.6563012Z [?25l[32m( ●    )[0m [1;34mInitializing apk build...[0m
+2026-02-25T10:41:47.6564422Z [2K[2;36m[10:41:47][0m[2;36m [0m[1;33mFlutter SDK not found or invalid version installed.                  [0m
+2026-02-25T10:41:47.6569702Z [32m( ●    )[0m [1;34mInitializing apk build...[0m
+2026-02-25T10:41:47.6570442Z [2K[32m( ●    )[0m [1;34mInitializing apk build...[0m
+2026-02-25T10:41:47.6581575Z Traceback (most recent call last):
+2026-02-25T10:41:47.6582480Z [?25hFlutter SDK 3.41.2 is required. It will be installed now. Proceed?   [y/n] (y): [?25l
+2026-02-25T10:41:47.6591641Z   File "/opt/hostedtoolcache/Python/3.11.14/x64/bin/flet", line 6, in <module>
+2026-02-25T10:41:47.6592602Z [2K[32m( ●    )[0m [1;34mInitializing apk build...[0m
+2026-02-25T10:41:47.6593195Z     sys.exit(main())
+2026-02-25T10:41:47.6593537Z              ^^^^^^
+2026-02-25T10:41:47.6594425Z   File "/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/flet/cli.py", line 8, in main
+2026-02-25T10:41:47.6595341Z     flet_cli.cli.main()
+2026-02-25T10:41:47.6596234Z   File "/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/flet_cli/cli.py", line 115, in main
+2026-02-25T10:41:47.6597193Z     args.handler(args)
+2026-02-25T10:41:47.6598346Z   File "/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/flet_cli/commands/build.py", line 68, in handle
+2026-02-25T10:41:47.6599359Z     self.initialize_command()
+2026-02-25T10:41:47.6600459Z   File "/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/flet_cli/commands/build_base.py", line 646, in initialize_command
+2026-02-25T10:41:47.6601599Z     super().initialize_command()
+2026-02-25T10:41:47.6602678Z   File "/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/flet_cli/commands/flutter_base.py", line 161, in initialize_command
+2026-02-25T10:41:47.6603716Z     if not self._prompt_input(prompt):
+2026-02-25T10:41:47.6604112Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-25T10:41:47.6605074Z   File "/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/flet_cli/commands/flutter_base.py", line 371, in _prompt_input
+2026-02-25T10:41:47.6606110Z     return Confirm.ask(prompt, default=True)
+2026-02-25T10:41:47.6606541Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-25T10:41:47.6607326Z   File "/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/rich/prompt.py", line 149, in ask
+2026-02-25T10:41:47.6608339Z     return _prompt(default=default, stream=stream)
+2026-02-25T10:41:47.6608792Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-25T10:41:47.6609653Z   File "/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/rich/prompt.py", line 292, in __call__
+2026-02-25T10:41:47.6610618Z     value = self.get_input(self.console, prompt, self.password, stream=stream)
+2026-02-25T10:41:47.6611247Z             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-25T10:41:47.6612542Z   File "/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/rich/prompt.py", line 211, in get_input
+2026-02-25T10:41:47.6614096Z     return console.input(prompt, *** stream=stream)
+2026-02-25T10:41:47.6614588Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-25T10:41:47.6615677Z   File "/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/rich/console.py", line 2174, in input

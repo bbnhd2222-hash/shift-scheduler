@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../main.dart'; // Ensure global theme access
 import '../models/nurse.dart';
 import '../models/shift_type.dart';
 import '../services/scheduler.dart';
@@ -140,7 +141,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   Widget _buildConfigDrawer() {
     return Drawer(
-      backgroundColor: const Color(0xFF1E1E2C),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      elevation: 0,
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24.0),
@@ -149,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               children: [
                 const Icon(Icons.settings_suggest, color: Colors.blueAccent, size: 28),
                 const SizedBox(width: 12),
-                Text("Setup", style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.white)),
+                Text("Setup", style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
               ],
             ),
             const SizedBox(height: 24),
@@ -157,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             const SizedBox(height: 12),
             _buildGlassField("Year", _yearCtrl, Icons.calendar_today),
             const SizedBox(height: 24),
-            const Text("STAFF COUNTS", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.2)),
+            Text("STAFF COUNTS", style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary, letterSpacing: 1.2)),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -175,7 +177,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               ],
             ),
             const SizedBox(height: 24),
-            const Text("TARGETS", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.2)),
+            Text("TARGETS", style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary, letterSpacing: 1.2)),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -190,9 +192,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               height: 55,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
-                gradient: const LinearGradient(colors: [Colors.blueAccent, Colors.purpleAccent]),
+                color: Theme.of(context).colorScheme.primary,
                 boxShadow: [
-                  BoxShadow(color: Colors.blueAccent.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))
+                  BoxShadow(color: Theme.of(context).colorScheme.primary.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))
                 ]
               ),
               child: ElevatedButton(
@@ -229,17 +231,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Widget _buildGlassField(String label, TextEditingController ctrl, IconData? icon) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1)),
       ),
       child: TextField(
         controller: ctrl,
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600),
         decoration: InputDecoration(
-          prefixIcon: icon != null ? Icon(icon, color: Colors.white54, size: 18) : null,
+          prefixIcon: icon != null ? Icon(icon, color: Theme.of(context).colorScheme.primary.withOpacity(0.7), size: 18) : null,
           labelText: label,
-          labelStyle: const TextStyle(color: Colors.white54),
+          labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
@@ -248,17 +250,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   Color _getShiftColor(ShiftType shift) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     switch(shift) {
       case ShiftType.morning: return Colors.amber.shade400;
       case ShiftType.evening: return Colors.deepOrangeAccent;
       case ShiftType.night: return Colors.deepPurpleAccent;
-      case ShiftType.off: return const Color(0xFF2C2C3E);
+      case ShiftType.off: return isDark ? const Color(0xFF2C2C3E) : const Color(0xFFE0E5EC);
     }
   }
   
   Color _getShiftTextColor(ShiftType shift) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     if (shift == ShiftType.morning) return Colors.black87;
-    if (shift == ShiftType.off) return Colors.white30;
+    if (shift == ShiftType.off) return isDark ? Colors.white30 : Colors.black26;
     return Colors.white;
   }
 
@@ -268,9 +272,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.auto_awesome, size: 64, color: Colors.white.withOpacity(0.2)),
+            Icon(Icons.auto_awesome, size: 64, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2)),
             const SizedBox(height: 16),
-            Text("Ready to orchestrate the month.", style: TextStyle(fontSize: 18, color: Colors.white.withOpacity(0.5))),
+            Text("Ready to orchestrate the month.", style: TextStyle(fontSize: 18, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5))),
           ],
         ),
       );
@@ -342,10 +346,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         alignment: Alignment.centerLeft,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Text(nurse.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13)),
+                        child: Text(nurse.name, style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface, fontSize: 13)),
                       ),
                       const SizedBox(width: 4),
                       for (int d in days)
@@ -363,7 +367,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               }),
               
               const SizedBox(height: 16),
-              const Text("DAILY TOTALS", style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+              Text("DAILY TOTALS", style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
               const SizedBox(height: 8),
               
               // Footer Totals
@@ -401,10 +405,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       margin: const EdgeInsets.only(right: 4),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: color ?? (isWeekend ? Colors.redAccent.withOpacity(0.2) : Colors.white.withOpacity(0.05)),
+        color: color ?? (isWeekend ? Colors.redAccent.withOpacity(0.1) : Theme.of(context).colorScheme.onSurface.withOpacity(0.05)),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(text, style: TextStyle(color: isWeekend ? Colors.redAccent : Colors.white70, fontWeight: FontWeight.bold, fontSize: 12)),
+      child: Text(text, style: TextStyle(color: isWeekend ? Colors.redAccent : Theme.of(context).colorScheme.onSurface.withOpacity(0.7), fontWeight: FontWeight.bold, fontSize: 12)),
     );
   }
 
@@ -415,11 +419,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       margin: const EdgeInsets.only(right: 4),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: color ?? (isHighlight ? Colors.blueAccent.withOpacity(0.2) : Colors.white.withOpacity(0.05)),
+        color: color ?? (isHighlight ? Theme.of(context).colorScheme.primary.withOpacity(0.2) : Theme.of(context).colorScheme.onSurface.withOpacity(0.05)),
         borderRadius: BorderRadius.circular(8),
-        border: isHighlight ? Border.all(color: Colors.blueAccent.withOpacity(0.5)) : null,
+        border: isHighlight ? Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.5)) : null,
       ),
-      child: Text(text, style: TextStyle(color: isHighlight ? Colors.blueAccent : Colors.white, fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal)),
+      child: Text(text, style: TextStyle(color: isHighlight ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface, fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal)),
     );
   }
 
@@ -465,13 +469,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     bool isDesktop = MediaQuery.of(context).size.width > 800;
+    bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F1A),
       appBar: isDesktop ? null : AppBar(
         title: const Text("Shift Scheduler", style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1.2)),
-        backgroundColor: const Color(0xFF1E1E2C),
-        elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
+            onPressed: () => ShiftSchedulerApp.of(context).toggleTheme(),
+          )
+        ],
       ),
       drawer: isDesktop ? null : _buildConfigDrawer(),
       body: Row(
@@ -479,15 +487,31 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           if (isDesktop)
             SizedBox(
               width: 320,
-              child: _buildConfigDrawer(),
+              child: Column(
+                children: [
+                  Expanded(child: _buildConfigDrawer()),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 24.0),
+                    child: IconButton(
+                       icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode, size: 28),
+                       onPressed: () => ShiftSchedulerApp.of(context).toggleTheme(),
+                    ),
+                  )
+                ],
+              ),
             ),
           Expanded(
             child: Container(
               margin: EdgeInsets.all(isDesktop ? 24.0 : 0),
               decoration: isDesktop ? BoxDecoration(
-                color: const Color(0xFF151522),
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(24),
-                boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 10))],
+                boxShadow: [
+                  BoxShadow(
+                    color: isDark ? Colors.black54 : Colors.grey.withOpacity(0.2), 
+                    blurRadius: 20, 
+                    offset: const Offset(0, 10))
+                ],
               ) : null,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(isDesktop ? 24 : 0),

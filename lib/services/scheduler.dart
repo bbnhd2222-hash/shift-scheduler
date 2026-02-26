@@ -248,233 +248,252 @@ class Scheduler {
       return (nightsRemaining * 100000) + (hrDiff * 100) - (weekend * 10) - hol;
     }
 
-    // Main Assignment
-    var random = Random();
-    
-    for (int d in days) {
-      int targetThisDay = scheduleTargets[d] ?? 0;
-      int reqN = nightTargets[d] ?? 0;
-      int targetDayShifts = max(0, targetThisDay - reqN);
-      int reqM = (targetDayShifts * ratioM).toInt();
-      
-      // Reduce Friday morning quotas, shift load to evening
-      int minPerShift = totalPool >= 6 ? 2 : 1;
-      if (isFriday(year, month, d)) {
-        reqM = max(minPerShift, reqM - 1);
-      }
-      
-      int reqE = targetDayShifts - reqM;
+    // --- PER THE ALGORITHM FIX REPORT ---
+    // If it's a 31 day month and we need exactly 144 hours (4 nights):
+    // Staggered 31-day Sequence: N, O, M, M, E, E, O, N, O, M, M, E, E, O, N, O, M, M, E, E, O, N, O, M, M, E, E, O, O, O, O.
+    // Total: 4xN (48) + 8xM (48) + 8xE (48) = 144 Hours.
+    if (daysCount == 31 && targetHours == 144 && targetNights == 4) {
+       List<ShiftType> base31Array = [
+          ShiftType.night, ShiftType.off, ShiftType.morning, ShiftType.morning, ShiftType.evening, ShiftType.evening, ShiftType.off,
+          ShiftType.night, ShiftType.off, ShiftType.morning, ShiftType.morning, ShiftType.evening, ShiftType.evening, ShiftType.off,
+          ShiftType.night, ShiftType.off, ShiftType.morning, ShiftType.morning, ShiftType.evening, ShiftType.evening, ShiftType.off,
+          ShiftType.night, ShiftType.off, ShiftType.morning, ShiftType.morning, ShiftType.evening, ShiftType.evening, ShiftType.off,
+          ShiftType.off, ShiftType.off, ShiftType.off
+       ];
 
-      reqN = max(minPerShift, reqN);
-      reqE = max(minPerShift, reqE);
-      reqM = max(minPerShift, reqM);
+       // We shift the index each month so nurses don't get locked into the exact same pattern (e.g. working every Friday forever).
+       int monthOffset = (month * 7) % 31; 
 
-      // A. Forced OFF (Sleep Day)
-      if (d > 1) {
-        for (var n in pool) {
-          if (n.getShift(d - 1) == ShiftType.night) {
-            n.assignShift(d, ShiftType.off);
+       int nurseIndex = 0;
+       for (var n in pool) {
+          int staggerOffset = (nurseIndex * 3) + monthOffset; // Stagger each nurse by 3 days
+          for (int d in days) {
+              int arrayIndex = ((d - 1) + staggerOffset) % 31;
+              n.assignShift(d, base31Array[arrayIndex]);
+          }
+          nurseIndex++;
+       }
+    } else {
+      // FALLLBACK: Standard Randomization Generator for non-31-day months or custom hours
+      var random = Random();
+      for (int d in days) {
+        int targetThisDay = scheduleTargets[d] ?? 0;
+        int reqN = nightTargets[d] ?? 0;
+        int targetDayShifts = max(0, targetThisDay - reqN);
+        int reqM = (targetDayShifts * ratioM).toInt();
+        
+        int minPerShift = totalPool >= 6 ? 2 : 1;
+        if (isFriday(year, month, d)) {
+          reqM = max(minPerShift, reqM - 1);
+        }
+        
+        int reqE = targetDayShifts - reqM;
+
+        reqN = max(minPerShift, reqN);
+        reqE = max(minPerShift, reqE);
+        reqM = max(minPerShift, reqM);
+
+        if (d > 1) {
+          for (var n in pool) {
+            if (n.getShift(d - 1) == ShiftType.night) {
+              n.assignShift(d, ShiftType.off);
+            }
           }
         }
-      }
 
-      List<Nurse> available = pool.where((n) => !n.shifts.containsKey(d)).toList();
-      available.shuffle(random);
+        List<Nurse> available = pool.where((n) => !n.shifts.containsKey(d)).toList();
+        available.shuffle(random);
 
-      int pnAssignedN = 0, pnAssignedE = 0, pnAssignedM = 0;
+        int pnAssignedN = 0, pnAssignedE = 0, pnAssignedM = 0;
 
-      // C. Assign NIGHTS
-      int nightsAssigned = 0;
-      List<Nurse> validNightCandidates = available.where((n) => 
-        needsNight(n) && canTakeShift(n, ShiftType.night) &&
-        !(d > 1 && n.getShift(d - 1) == ShiftType.night) &&
-        weeklyNightOk(n, d)
-      ).toList();
+        int nightsAssigned = 0;
+        List<Nurse> validNightCandidates = available.where((n) => 
+          needsNight(n) && canTakeShift(n, ShiftType.night) &&
+          !(d > 1 && n.getShift(d - 1) == ShiftType.night) &&
+          weeklyNightOk(n, d)
+        ).toList();
 
-      List<Nurse> candidatesPN = validNightCandidates.where((n) => n.role == "PN").toList();
-      List<Nurse> candidatesTN = validNightCandidates.where((n) => n.role != "PN").toList();
-      
-      candidatesPN.sort((a, b) => nightSortKeyVal(b).compareTo(nightSortKeyVal(a)));
-      candidatesTN.sort((a, b) => nightSortKeyVal(b).compareTo(nightSortKeyVal(a)));
+        List<Nurse> candidatesPN = validNightCandidates.where((n) => n.role == "PN").toList();
+        List<Nurse> candidatesTN = validNightCandidates.where((n) => n.role != "PN").toList();
+        
+        candidatesPN.sort((a, b) => nightSortKeyVal(b).compareTo(nightSortKeyVal(a)));
+        candidatesTN.sort((a, b) => nightSortKeyVal(b).compareTo(nightSortKeyVal(a)));
 
-      if (reqN > 0 && candidatesPN.isNotEmpty) {
-        var n = candidatesPN.removeAt(0);
-        n.assignShift(d, ShiftType.night);
-        available.remove(n);
-        nightsAssigned++;
-        pnAssignedN++;
-      }
-
-      List<Nurse> remainderN = [...candidatesTN, ...candidatesPN];
-      for (var n in remainderN) {
-        if (nightsAssigned < reqN) {
-          n.assignShift(d, ShiftType.night);
-          available.remove(n);
-          nightsAssigned++;
-          if (n.role == "PN") pnAssignedN++;
-        } else {
-          break;
-        }
-      }
-
-      if (reqN > 0 && pnAssignedN == 0) {
-        var availPNs = available.where((n) => n.role == "PN").toList();
-        availPNs.sort((a, b) => a.countShiftType(ShiftType.night).compareTo(b.countShiftType(ShiftType.night)));
-        for (var n in availPNs) {
-          if (d > 1 && n.getShift(d - 1) == ShiftType.night) continue;
+        if (reqN > 0 && candidatesPN.isNotEmpty) {
+          var n = candidatesPN.removeAt(0);
           n.assignShift(d, ShiftType.night);
           available.remove(n);
           nightsAssigned++;
           pnAssignedN++;
-          break;
         }
-      }
 
-      while (nightsAssigned < reqN) {
-        var candidates = available.where((n) => n.role == "PN" || n.role == "TN").toList();
-        if (candidates.isEmpty) break;
-        candidates.sort((a, b) => a.countShiftType(ShiftType.night).compareTo(b.countShiftType(ShiftType.night)));
-        bool found = false;
-        for (var n in candidates) {
-          if (d > 1 && n.getShift(d - 1) == ShiftType.night) continue;
-          n.assignShift(d, ShiftType.night);
-          available.remove(n);
-          nightsAssigned++;
-          if (n.role == "PN") pnAssignedN++;
-          found = true;
-          break;
+        List<Nurse> remainderN = [...candidatesTN, ...candidatesPN];
+        for (var n in remainderN) {
+          if (nightsAssigned < reqN) {
+            n.assignShift(d, ShiftType.night);
+            available.remove(n);
+            nightsAssigned++;
+            if (n.role == "PN") pnAssignedN++;
+          } else {
+            break;
+          }
         }
-        if (!found) break;
-      }
 
-      // D. Assign EVENINGS
-      int eveningsAssigned = 0;
-
-      List<Nurse> preferE = available.where((n) =>
-        preferEveningAfterNightOff(n, d) && needsHours(n) && canTakeShift(n, ShiftType.evening)
-      ).toList();
-
-      for (var n in preferE) {
-        if (eveningsAssigned < reqE) {
-          n.assignShift(d, ShiftType.evening);
-          available.remove(n);
-          eveningsAssigned++;
-          if (n.role == "PN") pnAssignedE++;
-        } else {
-          break;
+        if (reqN > 0 && pnAssignedN == 0) {
+          var availPNs = available.where((n) => n.role == "PN").toList();
+          availPNs.sort((a, b) => a.countShiftType(ShiftType.night).compareTo(b.countShiftType(ShiftType.night)));
+          for (var n in availPNs) {
+            if (d > 1 && n.getShift(d - 1) == ShiftType.night) continue;
+            n.assignShift(d, ShiftType.night);
+            available.remove(n);
+            nightsAssigned++;
+            pnAssignedN++;
+            break;
+          }
         }
-      }
 
-      List<Nurse> validECandidates = available.where((n) => needsHours(n) && canTakeShift(n, ShiftType.evening)).toList();
-      List<Nurse> eCandidatesPN = validECandidates.where((n) => n.role == "PN").toList();
-      List<Nurse> eCandidatesOther = validECandidates.where((n) => n.role != "PN").toList();
-
-      if (reqE > 0 && pnAssignedE == 0 && eCandidatesPN.isNotEmpty) {
-        var n = eCandidatesPN.removeAt(0);
-        n.assignShift(d, ShiftType.evening);
-        available.remove(n);
-        eveningsAssigned++;
-        pnAssignedE++;
-      }
-
-      int genSortKey(Nurse n) {
-         int weekend = countWeekendShifts(n, year, month);
-         int hol = countHolidayShifts(n, holidays);
-         int hrDiff = getEffectiveTargetHours(n) - n.getTotalHours();
-         return (hrDiff * 100) - (weekend * 10) - hol;
-      }
-
-      List<Nurse> eRemainder = [...eCandidatesOther, ...eCandidatesPN];
-      eRemainder.sort((a, b) => genSortKey(b).compareTo(genSortKey(a)));
-
-      for (var n in eRemainder) {
-        if (eveningsAssigned < reqE) {
-          n.assignShift(d, ShiftType.evening);
-          available.remove(n);
-          eveningsAssigned++;
-          if (n.role == "PN") pnAssignedE++;
-        } else {
-          break;
+        while (nightsAssigned < reqN) {
+          var candidates = available.where((n) => n.role == "PN" || n.role == "TN").toList();
+          if (candidates.isEmpty) break;
+          candidates.sort((a, b) => a.countShiftType(ShiftType.night).compareTo(b.countShiftType(ShiftType.night)));
+          bool found = false;
+          for (var n in candidates) {
+            if (d > 1 && n.getShift(d - 1) == ShiftType.night) continue;
+            n.assignShift(d, ShiftType.night);
+            available.remove(n);
+            nightsAssigned++;
+            if (n.role == "PN") pnAssignedN++;
+            found = true;
+            break;
+          }
+          if (!found) break;
         }
-      }
 
-      if (reqE > 0 && pnAssignedE == 0) {
-        var availPNs = available.where((n) => n.role == "PN").toList();
-        availPNs.sort((a, b) => (getEffectiveTargetHours(b) - b.getTotalHours()).compareTo(getEffectiveTargetHours(a) - a.getTotalHours()));
-        for (var n in availPNs) {
+        int eveningsAssigned = 0;
+        List<Nurse> preferE = available.where((n) =>
+          preferEveningAfterNightOff(n, d) && needsHours(n) && canTakeShift(n, ShiftType.evening)
+        ).toList();
+
+        for (var n in preferE) {
+          if (eveningsAssigned < reqE) {
+            n.assignShift(d, ShiftType.evening);
+            available.remove(n);
+            eveningsAssigned++;
+            if (n.role == "PN") pnAssignedE++;
+          } else {
+            break;
+          }
+        }
+
+        List<Nurse> validECandidates = available.where((n) => needsHours(n) && canTakeShift(n, ShiftType.evening)).toList();
+        List<Nurse> eCandidatesPN = validECandidates.where((n) => n.role == "PN").toList();
+        List<Nurse> eCandidatesOther = validECandidates.where((n) => n.role != "PN").toList();
+
+        if (reqE > 0 && pnAssignedE == 0 && eCandidatesPN.isNotEmpty) {
+          var n = eCandidatesPN.removeAt(0);
           n.assignShift(d, ShiftType.evening);
           available.remove(n);
           eveningsAssigned++;
           pnAssignedE++;
-          break;
         }
-      }
 
-      while (eveningsAssigned < reqE) {
-        var candidates = available.where((n) => n.role == "PN" || n.role == "TN").toList();
-        if (candidates.isEmpty) break;
-        candidates.sort((a, b) => (getEffectiveTargetHours(b) - b.getTotalHours()).compareTo(getEffectiveTargetHours(a) - a.getTotalHours()));
-        var n = candidates[0];
-        n.assignShift(d, ShiftType.evening);
-        available.remove(n);
-        eveningsAssigned++;
-        if (n.role == "PN") pnAssignedE++;
-      }
+        int genSortKey(Nurse n) {
+           int weekend = countWeekendShifts(n, year, month);
+           int hol = countHolidayShifts(n, holidays);
+           int hrDiff = getEffectiveTargetHours(n) - n.getTotalHours();
+           return (hrDiff * 100) - (weekend * 10) - hol;
+        }
 
-      // E. Assign MORNINGS
-      int morningsAssigned = 0;
-      List<Nurse> validMCandidates = available.where((n) => needsHours(n) && canTakeShift(n, ShiftType.morning)).toList();
-      List<Nurse> mCandidatesPN = validMCandidates.where((n) => n.role == "PN").toList();
-      List<Nurse> mCandidatesOther = validMCandidates.where((n) => n.role != "PN").toList();
+        List<Nurse> eRemainder = [...eCandidatesOther, ...eCandidatesPN];
+        eRemainder.sort((a, b) => genSortKey(b).compareTo(genSortKey(a)));
 
-      if (reqM > 0 && mCandidatesPN.isNotEmpty) {
-        var n = mCandidatesPN.removeAt(0);
-        n.assignShift(d, ShiftType.morning);
-        available.remove(n);
-        morningsAssigned++;
-        pnAssignedM++;
-      }
+        for (var n in eRemainder) {
+          if (eveningsAssigned < reqE) {
+            n.assignShift(d, ShiftType.evening);
+            available.remove(n);
+            eveningsAssigned++;
+            if (n.role == "PN") pnAssignedE++;
+          } else {
+            break;
+          }
+        }
 
-      List<Nurse> mRemainder = [...mCandidatesOther, ...mCandidatesPN];
-      mRemainder.sort((a, b) => genSortKey(b).compareTo(genSortKey(a)));
+        if (reqE > 0 && pnAssignedE == 0) {
+          var availPNs = available.where((n) => n.role == "PN").toList();
+          availPNs.sort((a, b) => (getEffectiveTargetHours(b) - b.getTotalHours()).compareTo(getEffectiveTargetHours(a) - a.getTotalHours()));
+          for (var n in availPNs) {
+            n.assignShift(d, ShiftType.evening);
+            available.remove(n);
+            eveningsAssigned++;
+            pnAssignedE++;
+            break;
+          }
+        }
 
-      for (var n in mRemainder) {
-        if (morningsAssigned < reqM) {
-          n.assignShift(d, ShiftType.morning);
+        while (eveningsAssigned < reqE) {
+          var candidates = available.where((n) => n.role == "PN" || n.role == "TN").toList();
+          if (candidates.isEmpty) break;
+          candidates.sort((a, b) => (getEffectiveTargetHours(b) - b.getTotalHours()).compareTo(getEffectiveTargetHours(a) - a.getTotalHours()));
+          var n = candidates[0];
+          n.assignShift(d, ShiftType.evening);
           available.remove(n);
-          morningsAssigned++;
-          if (n.role == "PN") pnAssignedM++;
-        } else {
-          break;
+          eveningsAssigned++;
+          if (n.role == "PN") pnAssignedE++;
         }
-      }
 
-      if (reqM > 0 && pnAssignedM == 0) {
-        var availPNs = available.where((n) => n.role == "PN").toList();
-        availPNs.sort((a, b) => (getEffectiveTargetHours(b) - b.getTotalHours()).compareTo(getEffectiveTargetHours(a) - a.getTotalHours()));
-        for (var n in availPNs) {
+        int morningsAssigned = 0;
+        List<Nurse> validMCandidates = available.where((n) => needsHours(n) && canTakeShift(n, ShiftType.morning)).toList();
+        List<Nurse> mCandidatesPN = validMCandidates.where((n) => n.role == "PN").toList();
+        List<Nurse> mCandidatesOther = validMCandidates.where((n) => n.role != "PN").toList();
+
+        if (reqM > 0 && mCandidatesPN.isNotEmpty) {
+          var n = mCandidatesPN.removeAt(0);
           n.assignShift(d, ShiftType.morning);
           available.remove(n);
           morningsAssigned++;
           pnAssignedM++;
-          break;
         }
-      }
 
-      while (morningsAssigned < reqM) {
-        var candidates = available.where((n) => n.role == "PN" || n.role == "TN").toList();
-        if (candidates.isEmpty) break;
-        candidates.sort((a, b) => (getEffectiveTargetHours(b) - b.getTotalHours()).compareTo(getEffectiveTargetHours(a) - a.getTotalHours()));
-        var n = candidates[0];
-        n.assignShift(d, ShiftType.morning);
-        available.remove(n);
-        morningsAssigned++;
-        if (n.role == "PN") pnAssignedM++;
-      }
+        List<Nurse> mRemainder = [...mCandidatesOther, ...mCandidatesPN];
+        mRemainder.sort((a, b) => genSortKey(b).compareTo(genSortKey(a)));
 
-      // F. Rest OFF
-      for (var n in available) {
-        n.assignShift(d, ShiftType.off);
+        for (var n in mRemainder) {
+          if (morningsAssigned < reqM) {
+            n.assignShift(d, ShiftType.morning);
+            available.remove(n);
+            morningsAssigned++;
+            if (n.role == "PN") pnAssignedM++;
+          } else {
+            break;
+          }
+        }
+
+        if (reqM > 0 && pnAssignedM == 0) {
+          var availPNs = available.where((n) => n.role == "PN").toList();
+          availPNs.sort((a, b) => (getEffectiveTargetHours(b) - b.getTotalHours()).compareTo(getEffectiveTargetHours(a) - a.getTotalHours()));
+          for (var n in availPNs) {
+            n.assignShift(d, ShiftType.morning);
+            available.remove(n);
+            morningsAssigned++;
+            pnAssignedM++;
+            break;
+          }
+        }
+
+        while (morningsAssigned < reqM) {
+          var candidates = available.where((n) => n.role == "PN" || n.role == "TN").toList();
+          if (candidates.isEmpty) break;
+          candidates.sort((a, b) => (getEffectiveTargetHours(b) - b.getTotalHours()).compareTo(getEffectiveTargetHours(a) - a.getTotalHours()));
+          var n = candidates[0];
+          n.assignShift(d, ShiftType.morning);
+          available.remove(n);
+          morningsAssigned++;
+          if (n.role == "PN") pnAssignedM++;
+        }
+
+        for (var n in available) {
+          n.assignShift(d, ShiftType.off);
+        }
       }
     }
 

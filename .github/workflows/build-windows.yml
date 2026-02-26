@@ -25,15 +25,6 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Generate Windows Platform Folders
-        shell: bash
-        run: |
-          mkdir -p lib_backup
-          mv lib/* lib_backup/ || true
-          flutter create . --platforms windows --org com.abdelrahman.scheduler --project-name shift_scheduler
-          mv lib_backup/* lib/
-          rm -rf lib_backup
-
       - name: Build Windows
         run: flutter build windows --release
 

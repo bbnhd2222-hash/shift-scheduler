@@ -1,4 +1,4 @@
-name: Build Flet APK
+name: Build Android APK
 
 on:
   push:
@@ -20,14 +20,6 @@ jobs:
 
       - name: Install Dependencies
         run: flutter pub get
-
-      - name: Generate Platform Folders
-        run: |
-          mkdir -p lib_backup
-          mv lib/* lib_backup/ || true
-          flutter create . --platforms android --org com.abdelrahman.scheduler --project-name shift_scheduler
-          mv lib_backup/* lib/
-          rm -rf lib_backup
 
       - name: Build APK
         run: flutter build apk --release

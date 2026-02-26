@@ -141,32 +141,25 @@ class Scheduler {
     int extraN = 0;
     double ratioM = 0.5;
 
-    if (totalPool > 0) {
-      int quantizedTarget = (targetHours ~/ 6) * 6;
-      int totalNightSlots = totalPool * targetNights;
-      int hoursSpentOnNights = totalNightSlots * 12;
-      int initialRemainingHours = (totalPool * quantizedTarget) - hoursSpentOnNights;
-      int initialDayShifts = initialRemainingHours ~/ 6;
-      int initialTotalShifts = totalNightSlots + initialDayShifts;
-
-      int avgDailyShifts = (initialTotalShifts / daysCount).ceil();
-      int holidayShiftsEst = avgDailyShifts * holidays.length;
-      int hoursLostToHolidays = (holidayShiftsEst * 6) + 12;
-
-      int remainingHoursTotal = initialRemainingHours - hoursLostToHolidays;
-      int totalDayShifts = remainingHoursTotal ~/ 6;
-      int totalShiftsNeeded = totalNightSlots + totalDayShifts;
+    if (totalPool > 0 && daysCount > 0) {
+      int totalNightSlots = targetNights * totalPool;
+      int totalNightHours = totalNightSlots * 12;
+      
+      // Calculate total day shifts needed to reach target hours
+      int totalPoolHours = targetHours * totalPool;
+      int totalDayHours = max(0, totalPoolHours - totalNightHours);
+      int totalDayShifts = totalDayHours ~/ 6;
 
       int countFridays = days.where((d) => isFriday(year, month, d)).length;
       int countOthers = daysCount - countFridays;
-      int xGap = 2;
+      int xGap = 2; // Reduce Friday quota
 
-      double avgTargetOther = (totalShiftsNeeded + (xGap * countFridays)) / daysCount;
+      double avgTargetOther = (totalDayShifts + (xGap * countFridays)) / daysCount;
       baseOther = avgTargetOther.toInt();
-      baseFriday = baseOther - xGap;
+      baseFriday = max(0, baseOther - xGap);
 
       int guaranteed = (baseOther * countOthers) + (baseFriday * countFridays);
-      extras = totalShiftsNeeded - guaranteed;
+      extras = max(0, totalDayShifts - guaranteed);
 
       baseN = totalNightSlots ~/ daysCount;
       extraN = totalNightSlots % daysCount;
@@ -493,7 +486,7 @@ class Scheduler {
 
       for (var n in pool) {
         if (n.getShift(h) != ShiftType.off && n.getShift(hNext) != ShiftType.off) {
-          for (var other in pool) {
+          for (var other in pool.where((o) => o.role == n.role)) { // ONLY swap like-for-like
             if (other == n) continue;
             if (other.getShift(hNext) == ShiftType.off && 
                 other.getShift(h) == ShiftType.off && 
@@ -528,6 +521,49 @@ class Scheduler {
             n.assignShift(bestDay, ShiftType.off);
           }
         }
+      }
+    }
+
+    // POST-PROCESSING: Validation Gate - Never Alone Skill Mix (PN Supervision)
+    for (int d in days) {
+      for (var shiftType in [ShiftType.night, ShiftType.evening, ShiftType.morning]) {
+        var nursesOnShift = pool.where((n) => n.getShift(d) == shiftType).toList();
+        var pnsOnShift = nursesOnShift.where((n) => n.role == "PN").length;
+        var tnsOnShift = nursesOnShift.where((n) => n.role == "TN").length;
+        
+        if (tnsOnShift > 0 && pnsOnShift == 0) {
+          var availablePns = pool.where((n) => 
+            n.role == "PN" && 
+            n.getShift(d) == ShiftType.off &&
+            (d == 1 || n.getShift(d-1) != ShiftType.night) &&
+            n.getTotalHours() <= 156
+          ).toList();
+          if (availablePns.isNotEmpty) {
+            availablePns.first.assignShift(d, shiftType);
+          } else {
+             // Understaffed is legally better than illegal isolation.
+             for(var tn in nursesOnShift.where((n) => n.role == "TN")) { tn.assignShift(d, ShiftType.off); }
+          }
+        }
+      }
+    }
+
+    // POST-PROCESSING: Validation Gate - Clamp Total Hours (144 - 162)
+    for (var n in pool) {
+      while (n.getTotalHours() > 162) {
+        var possibleDays = days.where((d) => n.getShift(d) == ShiftType.morning || n.getShift(d) == ShiftType.evening).toList();
+        if (possibleDays.isEmpty) break;
+        n.assignShift(possibleDays[0], ShiftType.off);
+      }
+      while (n.getTotalHours() < 144) {
+        var possibleDays = days.where((d) => 
+          n.getShift(d) == ShiftType.off && 
+          (d == 1 || n.getShift(d-1) != ShiftType.night) &&
+          (d == daysInMonth || n.getShift(d+1) != ShiftType.night)
+        ).toList();
+        if (possibleDays.isEmpty) break;
+        // Prioritize morning shifts to boost totals without altering night equity
+        n.assignShift(possibleDays.first, ShiftType.morning); 
       }
     }
 

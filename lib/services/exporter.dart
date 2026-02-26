@@ -88,6 +88,13 @@ class Exporter {
       }
     }
 
+    // Official Signatures
+    ws.appendRow([]);
+    ws.appendRow([]);
+    ws.appendRow(["", "", "", "Date: ___________________"]);
+    ws.appendRow([]);
+    ws.appendRow(["", "", "", "Head nurse signature: ___________________"]);
+
     var fileBytes = excel.save();
     if (fileBytes != null) {
       return Uint8List.fromList(fileBytes);

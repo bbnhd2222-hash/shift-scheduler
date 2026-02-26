@@ -69,6 +69,17 @@ class Scheduler {
     int targetHours = 160,
     int targetNights = 4,
   }) {
+    // mathematical feasibility checks (Reject early)
+    if ((targetHours - (targetNights * 12)) % 6 != 0) {
+      throw Exception("Impossible targets: (targetHours - targetNights * 12) must be divisible by 6.");
+    }
+    int daysInMonth = getMonthDays(year, month);
+    // Rough check: can they fit target hours in non-night days (assuming 1 max shift per day)?
+    int maxPossibleDayHours = (daysInMonth - targetNights - targetNights) * 6; // Accounts for Night->Off
+    if (maxPossibleDayHours + (targetNights * 12) < targetHours) {
+      throw Exception("Impossible targets: targetHours exceeds physical maximum for specific days in the month.");
+    }
+
     List<Nurse> nurses = [];
     
     int hnCount = staffConfig['HN'] ?? 0;
@@ -86,13 +97,6 @@ class Scheduler {
     int tnCount = staffConfig['TN'] ?? 0;
     for (int i = 0; i < tnCount; i++) {
       nurses.add(Nurse("TN ${i + 1}", "TN"));
-    }
-
-    int daysInMonth = getMonthDays(year, month);
-    List<int> days = List.generate(daysInMonth, (i) => i + 1);
-
-    List<Nurse> hns = nurses.where((n) => n.role == "HN").toList();
-    List<Nurse> assts = nurses.where((n) => n.role == "Asst").toList();
     List<Nurse> pool = nurses.where((n) => n.role == "PN" || n.role == "TN").toList();
 
     // STEP 1: Leadership Schedule
@@ -106,26 +110,44 @@ class Scheduler {
       }
     }
 
+    // A) Multiple Assistant Rule
+    // - On normal days: at most ONE assistant may be off. (We assign Off in order, wrapping around).
+    // - On official holidays: Head Nurse and ALL assistants are off together.
     for (var asst in assts) {
       for (int d in days) {
-        // Offset Assistant to Wednesday if HN is off Friday (guarantees 1 day gap via Thursday)
-        bool isWednesday = DateTime(year, month, d).weekday == DateTime.wednesday;
-        if (isWednesday || holidays.contains(d)) {
-          asst.assignShift(d, ShiftType.off);
-        } else {
-          asst.assignShift(d, ShiftType.morning);
-        }
+         if (holidays.contains(d)) {
+           asst.assignShift(d, ShiftType.off);
+         } else {
+           asst.assignShift(d, ShiftType.morning);
+         }
       }
     }
 
-    // Leadership fix: No same day off
-    for (int d in days) {
-      bool allHnOff = hns.isEmpty ? true : hns.every((hn) => hn.getShift(d) == ShiftType.off);
-      bool allAsstOff = assts.isEmpty ? true : assts.every((a) => a.getShift(d) == ShiftType.off);
-
-      if (hns.isNotEmpty && assts.isNotEmpty && allHnOff && allAsstOff) {
-        for (var a in assts) {
-          a.assignShift(d, ShiftType.morning);
+    if (assts.isNotEmpty) {
+      int asstOffIndex = 0;
+      for (int d in days) {
+        if (holidays.contains(d)) continue; // Handled
+        
+        // If it's a Friday, HN is off. We MUST have at least 1 assistant working.
+        // On normal days, we can give exactly ONE assistant an off-day to spread out rest.
+        // But if there's only 1 Assistant total, they cannot take Friday off if HN is off.
+        bool hnIsOff = hns.any((hn) => hn.getShift(d) == ShiftType.off);
+        
+        if (assts.length == 1) {
+          if (hnIsOff) {
+            assts[0].assignShift(d, ShiftType.morning);
+          } else {
+             // 1 Asst taking an off on Wed/Thu if HN works
+            if (DateTime(year, month, d).weekday == DateTime.wednesday) {
+               assts[0].assignShift(d, ShiftType.off);
+            }
+          }
+        } else {
+           // Multiple Assistants: Cycle one off-day amongst them.
+           assts[asstOffIndex].assignShift(d, ShiftType.off);
+           asstOffIndex = (asstOffIndex + 1) % assts.length;
+           
+           // If HN is off, verify AT LEAST ONE Asst is working. (Which is guaranteed if assts.length > 1 and we only give 1 off day).
         }
       }
     }
@@ -240,12 +262,13 @@ class Scheduler {
       // Calculate a comparable score for sorting. Higher needs come first.
       int nightsRemaining = targetNights - n.countShiftType(ShiftType.night);
       int weekend = countWeekendShifts(n, year, month);
+      int fridays = n.fridaysWorked; // Track explicitly
       int hol = countHolidayShifts(n, holidays);
       int hrDiff = getEffectiveTargetHours(n) - n.getTotalHours();
       
       // Dart doesn't have tuple sort, we use a scoring or compare loop
-      // But simple enough: prioritize nightsRemaining, then HR diff, penalize weekend/hols
-      return (nightsRemaining * 100000) + (hrDiff * 100) - (weekend * 10) - hol;
+      // Prioritize: nightsRemaining > hrDiff > penalize fridays/weekends/hols
+      return (nightsRemaining * 1000000) + (hrDiff * 1000) - (fridays * 100) - (weekend * 10) - hol;
     }
 
     // --- PER THE ALGORITHM FIX REPORT ---
@@ -399,9 +422,10 @@ class Scheduler {
 
         int genSortKey(Nurse n) {
            int weekend = countWeekendShifts(n, year, month);
+           int fridays = n.fridaysWorked; // Ensure Friday fairness
            int hol = countHolidayShifts(n, holidays);
            int hrDiff = getEffectiveTargetHours(n) - n.getTotalHours();
-           return (hrDiff * 100) - (weekend * 10) - hol;
+           return (hrDiff * 1000) - (fridays * 100) - (weekend * 10) - hol;
         }
 
         List<Nurse> eRemainder = [...eCandidatesOther, ...eCandidatesPN];
@@ -420,7 +444,7 @@ class Scheduler {
 
         if (reqE > 0 && pnAssignedE == 0) {
           var availPNs = available.where((n) => n.role == "PN").toList();
-          availPNs.sort((a, b) => (getEffectiveTargetHours(b) - b.getTotalHours()).compareTo(getEffectiveTargetHours(a) - a.getTotalHours()));
+          availPNs.sort((a, b) => genSortKey(b).compareTo(genSortKey(a)));
           for (var n in availPNs) {
             n.assignShift(d, ShiftType.evening);
             available.remove(n);
@@ -433,7 +457,7 @@ class Scheduler {
         while (eveningsAssigned < reqE) {
           var candidates = available.where((n) => n.role == "PN" || n.role == "TN").toList();
           if (candidates.isEmpty) break;
-          candidates.sort((a, b) => (getEffectiveTargetHours(b) - b.getTotalHours()).compareTo(getEffectiveTargetHours(a) - a.getTotalHours()));
+          candidates.sort((a, b) => genSortKey(b).compareTo(genSortKey(a)));
           var n = candidates[0];
           n.assignShift(d, ShiftType.evening);
           available.remove(n);
@@ -470,7 +494,7 @@ class Scheduler {
 
         if (reqM > 0 && pnAssignedM == 0) {
           var availPNs = available.where((n) => n.role == "PN").toList();
-          availPNs.sort((a, b) => (getEffectiveTargetHours(b) - b.getTotalHours()).compareTo(getEffectiveTargetHours(a) - a.getTotalHours()));
+          availPNs.sort((a, b) => genSortKey(b).compareTo(genSortKey(a)));
           for (var n in availPNs) {
             n.assignShift(d, ShiftType.morning);
             available.remove(n);
@@ -483,7 +507,7 @@ class Scheduler {
         while (morningsAssigned < reqM) {
           var candidates = available.where((n) => n.role == "PN" || n.role == "TN").toList();
           if (candidates.isEmpty) break;
-          candidates.sort((a, b) => (getEffectiveTargetHours(b) - b.getTotalHours()).compareTo(getEffectiveTargetHours(a) - a.getTotalHours()));
+          candidates.sort((a, b) => genSortKey(b).compareTo(genSortKey(a)));
           var n = candidates[0];
           n.assignShift(d, ShiftType.morning);
           available.remove(n);
@@ -543,6 +567,110 @@ class Scheduler {
       }
     }
 
+    // =========================================================================
+    // PHASE X: EXACT TOTALS BALANCER (Staff Only: PN & TN)
+    // Goal: For every PN/TN: totalHours == targetHours AND totalNights == targetNights.
+    // Preserves Night->Off, Weekly Rest, and Skill Mix.
+    // =========================================================================
+    
+    // Step X.1: Strictly Balance Nights first
+    for (var n in pool) {
+      // While missing nights
+      while (n.countShiftType(ShiftType.night) < targetNights) {
+         // Find a legally safe day to add a night
+         var possibleDays = days.where((d) => 
+            n.getShift(d) == ShiftType.off && 
+            weeklyNightOk(n, d) &&
+            (d == daysInMonth || n.getShift(d+1) == ShiftType.off) // Must have next day off
+         ).toList();
+         if (possibleDays.isEmpty) break; // Cannot legally fix
+         
+         // Prioritize days where nights are needed globally
+         possibleDays.sort((a, b) {
+            int needsA = nightTargets[a]! - pool.where((p) => p.getShift(a) == ShiftType.night).length;
+            int needsB = nightTargets[b]! - pool.where((p) => p.getShift(b) == ShiftType.night).length;
+            return needsB.compareTo(needsA);
+         });
+         
+         int theDay = possibleDays.first;
+         n.assignShift(theDay, ShiftType.night);
+         if (theDay < daysInMonth) n.assignShift(theDay + 1, ShiftType.off); // Enforce Night->Off
+      }
+      
+      // While having too many nights (Should be rare due to Path B caps, but hard constraints demand it)
+      while (n.countShiftType(ShiftType.night) > targetNights) {
+         var nightDays = days.where((d) => n.getShift(d) == ShiftType.night).toList();
+         if (nightDays.isEmpty) break;
+         
+         // Prioritize removing nights from days with overstaffing
+         nightDays.sort((a, b) {
+            int overA = pool.where((p) => p.getShift(a) == ShiftType.night).length - nightTargets[a]!;
+            int overB = pool.where((p) => p.getShift(b) == ShiftType.night).length - nightTargets[b]!;
+            return overB.compareTo(overA);
+         });
+         
+         n.assignShift(nightDays.first, ShiftType.off); 
+      }
+    }
+
+    // Step X.2: Strictly Balance Hours 
+    // Prefer Swaps first, then safe addition/subtraction
+    for (var n in pool) {
+      int effTarget = getEffectiveTargetHours(n);
+      
+      // Too many hours
+      while (n.getTotalHours() > effTarget) {
+        var shiftsToDrop = days.where((d) => n.getShift(d) == ShiftType.morning || n.getShift(d) == ShiftType.evening).toList();
+        if (shiftsToDrop.isEmpty) break;
+        
+        // Try to swap with someone who needs hours
+        bool swapped = false;
+        for (int theDay in shiftsToDrop) {
+           var shiftType = n.getShift(theDay);
+           var needyNurses = pool.where((other) => 
+              other != n && 
+              other.getTotalHours() < getEffectiveTargetHours(other) &&
+              other.getShift(theDay) == ShiftType.off &&
+              (theDay == 1 || other.getShift(theDay-1) != ShiftType.night)
+           ).toList();
+           
+           if (needyNurses.isNotEmpty) {
+              needyNurses.first.assignShift(theDay, shiftType);
+              n.assignShift(theDay, ShiftType.off);
+              swapped = true;
+              break;
+           }
+        }
+        
+        // Fallback: Just drop the shift
+        if (!swapped) {
+           n.assignShift(shiftsToDrop.first, ShiftType.off);
+        }
+      }
+      
+      // Too few hours
+      while (n.getTotalHours() < effTarget) {
+         int diff = effTarget - n.getTotalHours();
+         if (diff < 6) break; // Impossible to fix with 6h blocks (shouldn't happen with % constraints)
+         
+         var daysToWork = days.where((d) => 
+            n.getShift(d) == ShiftType.off && 
+            (d == 1 || n.getShift(d-1) != ShiftType.night) &&
+            (d == daysInMonth || n.getShift(d+1) != ShiftType.night) // Cannot add before a night (breaks prior night's off)
+         ).toList();
+         
+         if (daysToWork.isEmpty) break;
+         
+         // Determine if Morning or Evening is globally needed more on that day
+         int theDay = daysToWork.first;
+         int mCount = pool.where((p) => p.getShift(theDay) == ShiftType.morning).length;
+         int eCount = pool.where((p) => p.getShift(theDay) == ShiftType.evening).length;
+         
+         ShiftType typeToAdd = mCount <= eCount ? ShiftType.morning : ShiftType.evening;
+         n.assignShift(theDay, typeToAdd);
+      }
+    }
+
     // POST-PROCESSING: Validation Gate - Never Alone Skill Mix (PN Supervision)
     for (int d in days) {
       for (var shiftType in [ShiftType.night, ShiftType.evening, ShiftType.morning]) {
@@ -555,8 +683,9 @@ class Scheduler {
             n.role == "PN" && 
             n.getShift(d) == ShiftType.off &&
             (d == 1 || n.getShift(d-1) != ShiftType.night) &&
-            n.getTotalHours() <= 156
+            n.getTotalHours() + shiftType.hours <= getEffectiveTargetHours(n) // Respect exact bounds
           ).toList();
+          
           if (availablePns.isNotEmpty) {
             availablePns.first.assignShift(d, shiftType);
           } else {
@@ -564,25 +693,6 @@ class Scheduler {
              for(var tn in nursesOnShift.where((n) => n.role == "TN")) { tn.assignShift(d, ShiftType.off); }
           }
         }
-      }
-    }
-
-    // POST-PROCESSING: Validation Gate - Clamp Total Hours (144 - 162)
-    for (var n in pool) {
-      while (n.getTotalHours() > 162) {
-        var possibleDays = days.where((d) => n.getShift(d) == ShiftType.morning || n.getShift(d) == ShiftType.evening).toList();
-        if (possibleDays.isEmpty) break;
-        n.assignShift(possibleDays[0], ShiftType.off);
-      }
-      while (n.getTotalHours() < 144) {
-        var possibleDays = days.where((d) => 
-          n.getShift(d) == ShiftType.off && 
-          (d == 1 || n.getShift(d-1) != ShiftType.night) &&
-          (d == daysInMonth || n.getShift(d+1) != ShiftType.night)
-        ).toList();
-        if (possibleDays.isEmpty) break;
-        // Prioritize morning shifts to boost totals without altering night equity
-        n.assignShift(possibleDays.first, ShiftType.morning); 
       }
     }
 

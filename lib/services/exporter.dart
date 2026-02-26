@@ -1,11 +1,11 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:excel/excel.dart';
 import '../models/nurse.dart';
 import '../models/shift_type.dart';
 
 class Exporter {
-  static Future<void> exportToExcel(
-      List<Nurse> nurses, int year, int month, String filename) async {
+  static Future<Uint8List?> exportToExcel(
+      List<Nurse> nurses, int year, int month) async {
     var excel = Excel.createExcel();
     // Bypassing a bug in the Excel package where renaming throws "Unsupported operation"
     var sheetName = excel.getDefaultSheet() ?? "Sheet1";
@@ -90,9 +90,8 @@ class Exporter {
 
     var fileBytes = excel.save();
     if (fileBytes != null) {
-      File(filename)
-        ..createSync(recursive: true)
-        ..writeAsBytesSync(fileBytes);
+      return Uint8List.fromList(fileBytes);
     }
+    return null;
   }
 }

@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/nurse.dart';
@@ -118,11 +116,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       int year = int.parse(_yearCtrl.text);
       int month = int.parse(_monthCtrl.text);
       
-      Directory tempDir = await getTemporaryDirectory();
-      String path = '${tempDir.path}/Schedule_${month}_$year.xlsx';
+      var bytes = await Exporter.exportToExcel(_schedule, year, month);
       
-      await Exporter.exportToExcel(_schedule, year, month, path);
-      await Share.shareXFiles([XFile(path)], text: 'Schedule for $month/$year');
+      if (bytes != null) {
+        await Share.shareXFiles(
+          [
+            XFile.fromData(
+              bytes,
+              name: 'Schedule_${month}_$year.xlsx',
+              mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            )
+          ], 
+          text: 'Schedule for $month/$year',
+        );
+      } else {
+         _showSnack("Export Error: Could not generate excel", Colors.redAccent);
+      }
       
     } catch (e) {
       _showSnack("Export Error: $e", Colors.redAccent);

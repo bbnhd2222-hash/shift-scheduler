@@ -7,11 +7,8 @@ class Exporter {
   static Future<void> exportToExcel(
       List<Nurse> nurses, int year, int month, String filename) async {
     var excel = Excel.createExcel();
-    var sheet = excel.getDefaultSheet();
-    var sheetName = "Schedule $month-$year";
-    if (sheet != null) {
-      excel.rename(sheet, sheetName);
-    }
+    // Bypassing a bug in the Excel package where renaming throws "Unsupported operation"
+    var sheetName = excel.getDefaultSheet() ?? "Sheet1";
     var ws = excel[sheetName];
 
     // Headers

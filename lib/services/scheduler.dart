@@ -272,7 +272,6 @@ class Scheduler {
       
       int reqE = targetDayShifts - reqM;
 
-      int minPerShift = totalPool >= 6 ? 2 : 1;
       reqN = max(minPerShift, reqN);
       reqE = max(minPerShift, reqE);
       reqM = max(minPerShift, reqM);

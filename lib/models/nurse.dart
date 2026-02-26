@@ -4,11 +4,16 @@ class Nurse {
   final String name;
   final String role; // HN, Asst, PN, TN
   final Map<int, ShiftType> shifts = {}; // Day number -> ShiftType
+  
+  int fridaysWorked = 0;
+  int holidaysWorked = 0;
 
   Nurse(this.name, this.role);
 
   void clearSchedule() {
     shifts.clear();
+    fridaysWorked = 0;
+    holidaysWorked = 0;
   }
 
   void assignShift(int day, ShiftType shift) {

@@ -31,6 +31,21 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   // Keep track of cells being pressed for bounce animation
   Map<String, bool> _pressedCells = {};
 
+  List<int> _get2026Holidays(int month) {
+    switch (month) {
+      case 1: return [1, 7, 29];
+      case 2: return [19];
+      case 3: return [20, 21, 22];
+      case 4: return [13, 25];
+      case 5: return [1, 3, 26, 27, 28, 29];
+      case 6: return [16, 30];
+      case 7: return [23];
+      case 8: return [26];
+      case 10: return [6];
+      default: return [];
+    }
+  }
+
   void _generate() async {
     setState(() { _isGenerating = true; });
     // Add a tiny delay to allow the loading spinner to show up smoothly
@@ -46,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         'TN': int.parse(_tnCtrl.text),
       };
       
-      List<int> holidays = month == 3 ? [21, 22, 23] : [];
+      List<int> holidays = year == 2026 ? _get2026Holidays(month) : [];
       
       Scheduler scheduler = Scheduler();
       var result = scheduler.generateSchedule(
@@ -291,10 +306,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 children: [
                   _buildHeaderCell("Nurse Name", width: 140),
                   for (int d in days) _buildHeaderCell("$d", width: 44, isWeekend: Scheduler().isFriday(year, month, d) || Scheduler().isSaturday(year, month, d)),
-                  _buildHeaderCell("M", width: 40, color: Colors.amber.shade800),
-                  _buildHeaderCell("E", width: 40, color: Colors.deepOrange.shade800),
-                  _buildHeaderCell("N", width: 40, color: Colors.deepPurple.shade800),
-                  _buildHeaderCell("Σ", width: 50, color: Colors.blueAccent),
+                  _buildHeaderCell("M", width: 36, color: Colors.amber.shade800),
+                  _buildHeaderCell("E", width: 36, color: Colors.deepOrange.shade800),
+                  _buildHeaderCell("N", width: 36, color: Colors.deepPurple.shade800),
+                  _buildHeaderCell("Hol", width: 36, color: Colors.teal.shade700),
+                  _buildHeaderCell("Fri", width: 36, color: Colors.indigo.shade700),
+                  _buildHeaderCell("Σ", width: 44, color: Colors.blueAccent),
                 ],
               ),
               const SizedBox(height: 8),
@@ -325,10 +342,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       for (int d in days)
                         _buildInteractiveCell(nurse, d),
                       const SizedBox(width: 4),
-                      _buildSummaryCell("$mHrs", width: 40),
-                      _buildSummaryCell("$eHrs", width: 40),
-                      _buildSummaryCell("$nHrs", width: 40),
-                      _buildSummaryCell("$totalHrs", width: 50, isHighlight: true),
+                      _buildSummaryCell("$mHrs", width: 36),
+                      _buildSummaryCell("$eHrs", width: 36),
+                      _buildSummaryCell("$nHrs", width: 36),
+                      _buildSummaryCell("${nurse.holidaysWorked}", width: 36),
+                      _buildSummaryCell("${nurse.fridaysWorked}", width: 36),
+                      _buildSummaryCell("$totalHrs", width: 44, isHighlight: true),
                     ],
                   ),
                 );

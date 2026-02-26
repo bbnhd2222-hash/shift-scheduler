@@ -108,7 +108,9 @@ class Scheduler {
 
     for (var asst in assts) {
       for (int d in days) {
-        if (isSunday(year, month, d) || holidays.contains(d)) {
+        // Offset Assistant to Wednesday if HN is off Friday (guarantees 1 day gap via Thursday)
+        bool isWednesday = DateTime(year, month, d).weekday == DateTime.wednesday;
+        if (isWednesday || holidays.contains(d)) {
           asst.assignShift(d, ShiftType.off);
         } else {
           asst.assignShift(d, ShiftType.morning);
@@ -124,17 +126,6 @@ class Scheduler {
       if (hns.isNotEmpty && assts.isNotEmpty && allHnOff && allAsstOff) {
         for (var a in assts) {
           a.assignShift(d, ShiftType.morning);
-        }
-      }
-    }
-
-    // HN Saturday Presence
-    for (var hn in hns) {
-      for (int d in days) {
-        if (isSaturday(year, month, d) && !holidays.contains(d)) {
-          if (hn.getShift(d) == ShiftType.off) {
-            hn.assignShift(d, ShiftType.morning);
-          }
         }
       }
     }
@@ -180,7 +171,8 @@ class Scheduler {
       baseN = totalNightSlots ~/ daysCount;
       extraN = totalNightSlots % daysCount;
 
-      ratioM = 47 / 82;
+      // Desired Ratio: Morning 45%, Evening 37% (Total Day = 82%) => Morning / Day = 45 / 82
+      ratioM = 45 / 82;
     }
 
     Map<int, int> scheduleTargets = {};
@@ -271,6 +263,13 @@ class Scheduler {
       int reqN = nightTargets[d] ?? 0;
       int targetDayShifts = max(0, targetThisDay - reqN);
       int reqM = (targetDayShifts * ratioM).toInt();
+      
+      // Reduce Friday morning quotas, shift load to evening
+      int minPerShift = totalPool >= 6 ? 2 : 1;
+      if (isFriday(year, month, d)) {
+        reqM = max(minPerShift, reqM - 1);
+      }
+      
       int reqE = targetDayShifts - reqM;
 
       int minPerShift = totalPool >= 6 ? 2 : 1;
@@ -487,10 +486,12 @@ class Scheduler {
       }
     }
 
-    // POST-PROCESSING: Holiday swap
+    // POST-PROCESSING: Multi-day Holiday Swap (Force day 2 off if day 1 worked)
     for (int h in holidays) {
       int hNext = h + 1;
       if (hNext > daysInMonth) continue;
+      if (!holidays.contains(hNext)) continue; // Must be consecutive holidays
+
       for (var n in pool) {
         if (n.getShift(h) != ShiftType.off && n.getShift(hNext) != ShiftType.off) {
           for (var other in pool) {
@@ -527,6 +528,18 @@ class Scheduler {
           if (bestDay != null) {
             n.assignShift(bestDay, ShiftType.off);
           }
+        }
+      }
+    }
+
+    // POST-PROCESSING: Calculate Final metrics for UI tracking
+    for (var n in nurses) {
+      n.fridaysWorked = 0;
+      n.holidaysWorked = 0;
+      for (int d in days) {
+        if (n.getShift(d) != ShiftType.off) {
+          if (isFriday(year, month, d)) n.fridaysWorked++;
+          if (holidays.contains(d)) n.holidaysWorked++;
         }
       }
     }

@@ -97,6 +97,12 @@ class Scheduler {
     int tnCount = staffConfig['TN'] ?? 0;
     for (int i = 0; i < tnCount; i++) {
       nurses.add(Nurse("TN ${i + 1}", "TN"));
+    }
+    
+    List<int> days = List.generate(daysInMonth, (i) => i + 1);
+
+    List<Nurse> hns = nurses.where((n) => n.role == "HN").toList();
+    List<Nurse> assts = nurses.where((n) => n.role == "Asst").toList();
     List<Nurse> pool = nurses.where((n) => n.role == "PN" || n.role == "TN").toList();
 
     // STEP 1: Leadership Schedule
